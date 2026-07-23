@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev gcc && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy service code first
-COPY services/user_service .
+# Copy service code
+COPY services/order_service .
 
 # Copy shared folder
 COPY shared ./shared

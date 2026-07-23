@@ -9,17 +9,144 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./services/user_service:/app
+      - ./shared:/app/shared:ro
     ports:
       - "8001:8000"
     env_file:
       - ./services/user_service/.env
+    environment:
+      - POSTGRES_HOST=user_db
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app:/shared
     depends_on:
-      - user_db
-      - redis
+      user_db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - ecommerce_network
+    restart: unless-stopped
 
-  # PostgreSQL
+  # Product Service
+  product_service:
+    build:
+      context: .
+      dockerfile: ./services/product_service/Dockerfile
+      target: development
+    container_name: product_service
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./services/product_service:/app
+      - ./shared:/app/shared:ro
+    ports:
+      - "8002:8000"
+    env_file:
+      - ./services/product_service/.env
+    environment:
+      - POSTGRES_HOST=product_db
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app:/shared
+      - USER_SERVICE_URL=http://user_service:8000
+    depends_on:
+      product_db:
+        condition: service_healthy
+      user_service:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce_network
+    restart: unless-stopped
+
+  # Order Service
+  order_service:
+    build:
+      context: .
+      dockerfile: ./services/order_service/Dockerfile
+      target: development
+    container_name: order_service
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./services/order_service:/app
+      - ./shared:/app/shared:ro
+    ports:
+      - "8003:8000"
+    env_file:
+      - ./services/order_service/.env
+    environment:
+      - POSTGRES_HOST=order_db
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app:/shared
+      - PRODUCT_SERVICE_URL=http://product_service:8000
+      - USER_SERVICE_URL=http://user_service:8000
+    depends_on:
+      order_db:
+        condition: service_healthy
+      product_service:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce_network
+    restart: unless-stopped
+
+  # Payment Service
+  payment_service:
+    build:
+      context: .
+      dockerfile: ./services/payment_service/Dockerfile
+      target: development
+    container_name: payment_service
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./services/payment_service:/app
+      - ./shared:/app/shared:ro
+    ports:
+      - "8004:8000"
+    env_file:
+      - ./services/payment_service/.env
+    environment:
+      - POSTGRES_HOST=payment_db
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app:/shared
+      - ORDER_SERVICE_URL=http://order_service:8000
+    depends_on:
+      payment_db:
+        condition: service_healthy
+      order_service:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce_network
+    restart: unless-stopped
+
+  # Notification Service
+  notification_service:
+    build:
+      context: .
+      dockerfile: ./services/notification_service/Dockerfile
+      target: development
+    container_name: notification_service
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./services/notification_service:/app
+      - ./shared:/app/shared:ro
+    ports:
+      - "8005:8000"
+    env_file:
+      - ./services/notification_service/.env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app:/shared
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce_network
+    restart: unless-stopped
+
+  # Databases
   user_db:
     image: postgres:15-alpine
     container_name: user_db
@@ -33,6 +160,68 @@ services:
       - user_db_data:/var/lib/postgresql/data
     networks:
       - ecommerce_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  product_db:
+    image: postgres:15-alpine
+    container_name: product_db
+    environment:
+      POSTGRES_DB: product_service_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_secure_db_password_here
+    ports:
+      - "5433:5432"
+    volumes:
+      - product_db_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  order_db:
+    image: postgres:15-alpine
+    container_name: order_db
+    environment:
+      POSTGRES_DB: order_service_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_secure_db_password_here
+    ports:
+      - "5434:5432"
+    volumes:
+      - order_db_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  payment_db:
+    image: postgres:15-alpine
+    container_name: payment_db
+    environment:
+      POSTGRES_DB: payment_service_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_secure_db_password_here
+    ports:
+      - "5435:5432"
+    volumes:
+      - payment_db_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Redis
   redis:
@@ -42,6 +231,11 @@ services:
       - "6379:6379"
     networks:
       - ecommerce_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   ecommerce_network:
@@ -49,3 +243,6 @@ networks:
 
 volumes:
   user_db_data:
+  product_db_data:
+  order_db_data:
+  payment_db_data:
