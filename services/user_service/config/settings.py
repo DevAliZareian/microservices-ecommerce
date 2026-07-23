@@ -25,7 +25,6 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_filters',
     'drf_spectacular',
-    'django_celery_results',
 
     'accounts',
 ]
@@ -125,7 +124,7 @@ CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='', cast=Csv())
 
 REDIS_URL = config('REDIS_URL', default='redis://redis:6379/0')
 CELERY_BROKER_URL = REDIS_URL
-CELERY_RESULT_BACKEND = 'django-db'
+CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -137,6 +136,8 @@ CACHES = {
         'LOCATION': REDIS_URL,
     }
 }
+
+SERVICE_KEY = config('SERVICE_KEY', default='internal-service-key')
 
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
