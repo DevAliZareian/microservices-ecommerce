@@ -146,6 +146,41 @@ services:
       - ecommerce_network
     restart: unless-stopped
 
+  # API Gateway
+  gateway:
+    build:
+      context: .
+      dockerfile: ./gateway/Dockerfile
+    container_name: gateway
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./gateway:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./gateway/.env
+    environment:
+      - GATEWAY_USER_SERVICE_URL=http://user_service:8000
+      - GATEWAY_PRODUCT_SERVICE_URL=http://product_service:8000
+      - GATEWAY_ORDER_SERVICE_URL=http://order_service:8000
+      - GATEWAY_PAYMENT_SERVICE_URL=http://payment_service:8000
+      - GATEWAY_NOTIFICATION_SERVICE_URL=http://notification_service:8000
+      - PYTHONPATH=/app
+    depends_on:
+      user_service:
+        condition: service_started
+      product_service:
+        condition: service_started
+      order_service:
+        condition: service_started
+      payment_service:
+        condition: service_started
+      notification_service:
+        condition: service_started
+    networks:
+      - ecommerce_network
+    restart: unless-stopped
+
   # Databases
   user_db:
     image: postgres:15-alpine
